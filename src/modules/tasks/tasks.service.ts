@@ -1,25 +1,44 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { TaskStatus } from './task.interface';
 import type { Task } from './task.interface';
+import type { CreateTaskDto } from './dto/create-task.dto';
+import type { UpdateTaskDto } from './dto/update-task.dto';
+import type { QueryTasksDto } from './dto/query-tasks.dto';
 
 @Injectable()
 export class TasksService {
   private tasks: Task[] = [];
 
-  create(title: string, description: string): Task {
+  create(createTaskDto: CreateTaskDto): Task {
     const task: Task = {
       id: randomUUID(),
-      title,
-      description,
-      status: 'OPEN',
+      title: createTaskDto.title,
+      description: createTaskDto.description,
+      status: TaskStatus.OPEN,
       createdAt: new Date(),
     };
     this.tasks.push(task);
     return task;
   }
 
-  findAll(): Task[] {
-    return this.tasks;
+  findAll(query?: QueryTasksDto): Task[] {
+    let result = [...this.tasks];
+
+    if (query?.status) {
+      result = result.filter((task) => task.status === query.status);
+    }
+
+    if (query?.search) {
+      const searchLower = query.search.toLowerCase();
+      result = result.filter(
+        (task) =>
+          task.title.toLowerCase().includes(searchLower) ||
+          task.description.toLowerCase().includes(searchLower),
+      );
+    }
+
+    return result;
   }
 
   findById(id: string): Task {
@@ -30,17 +49,17 @@ export class TasksService {
     return task;
   }
 
-  update(id: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>): Task {
+  update(id: string, updateTaskDto: UpdateTaskDto): Task {
     const task = this.findById(id);
 
-    if (updates.title !== undefined) {
-      task.title = updates.title;
+    if (updateTaskDto.title !== undefined) {
+      task.title = updateTaskDto.title;
     }
-    if (updates.description !== undefined) {
-      task.description = updates.description;
+    if (updateTaskDto.description !== undefined) {
+      task.description = updateTaskDto.description;
     }
-    if (updates.status !== undefined) {
-      task.status = updates.status;
+    if (updateTaskDto.status !== undefined) {
+      task.status = updateTaskDto.status;
     }
 
     return task;

@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
+import { TaskStatus } from './task.interface';
 import type { Task } from './task.interface';
+import type { CreateTaskDto } from './dto/create-task.dto';
+import type { UpdateTaskDto } from './dto/update-task.dto';
+import type { QueryTasksDto } from './dto/query-tasks.dto';
 
 describe('TasksController', () => {
   let controller: TasksController;
@@ -11,7 +15,7 @@ describe('TasksController', () => {
     id: 'mock-uuid',
     title: 'Test Task',
     description: 'Test Description',
-    status: 'OPEN',
+    status: TaskStatus.OPEN,
     createdAt: new Date(),
   };
 
@@ -27,7 +31,7 @@ describe('TasksController', () => {
             findById: jest.fn().mockReturnValue(mockTask),
             update: jest
               .fn()
-              .mockReturnValue({ ...mockTask, status: 'IN_PROGRESS' }),
+              .mockReturnValue({ ...mockTask, status: TaskStatus.IN_PROGRESS }),
             delete: jest
               .fn()
               .mockReturnValue({ message: 'Task deleted successfully' }),
@@ -45,19 +49,24 @@ describe('TasksController', () => {
   });
 
   describe('create', () => {
-    it('should call service.create with title and description', () => {
+    it('should call service.create with CreateTaskDto', () => {
       const spy = jest.spyOn(service, 'create');
-      const result = controller.create('Test Task', 'Test Description');
-      expect(spy).toHaveBeenCalledWith('Test Task', 'Test Description');
+      const dto: CreateTaskDto = {
+        title: 'Test Task',
+        description: 'Test Description',
+      };
+      const result = controller.create(dto);
+      expect(spy).toHaveBeenCalledWith(dto);
       expect(result).toEqual(mockTask);
     });
   });
 
   describe('findAll', () => {
-    it('should return an array of tasks', () => {
+    it('should return an array of tasks with query', () => {
       const spy = jest.spyOn(service, 'findAll');
-      const result = controller.findAll();
-      expect(spy).toHaveBeenCalled();
+      const query: QueryTasksDto = { status: TaskStatus.OPEN };
+      const result = controller.findAll(query);
+      expect(spy).toHaveBeenCalledWith(query);
       expect(result).toEqual([mockTask]);
     });
   });
@@ -72,13 +81,12 @@ describe('TasksController', () => {
   });
 
   describe('update', () => {
-    it('should call service.update with id and payload', () => {
+    it('should call service.update with id and UpdateTaskDto', () => {
       const spy = jest.spyOn(service, 'update');
-      const result = controller.update('mock-uuid', { status: 'IN_PROGRESS' });
-      expect(spy).toHaveBeenCalledWith('mock-uuid', {
-        status: 'IN_PROGRESS',
-      });
-      expect(result.status).toBe('IN_PROGRESS');
+      const dto: UpdateTaskDto = { status: TaskStatus.IN_PROGRESS };
+      const result = controller.update('mock-uuid', dto);
+      expect(spy).toHaveBeenCalledWith('mock-uuid', dto);
+      expect(result.status).toBe(TaskStatus.IN_PROGRESS);
     });
   });
 

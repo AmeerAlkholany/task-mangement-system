@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
@@ -14,6 +14,13 @@ describe('Tasks API (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     await app.init();
   });
 
@@ -24,7 +31,7 @@ describe('Tasks API (e2e)', () => {
   let createdTaskId: string;
 
   describe('POST /api/v1/tasks', () => {
-    it('should create a new task with default status OPEN and return 201', async () => {
+    it('should create a new task with valid DTO and return 201', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/tasks')
         .send({
@@ -43,6 +50,41 @@ describe('Tasks API (e2e)', () => {
 
       createdTaskId = response.body.id;
     });
+
+    it('should fail with 400 when title is missing or too short', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/tasks')
+        .send({
+          title: 'Hi',
+          description: 'Valid description text',
+        })
+        .expect(400);
+
+      expect(response.body.statusCode).toBe(400);
+      expect(response.body.message).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('Title must be at least 3 characters long'),
+        ]),
+      );
+    });
+
+    it('should fail with 400 when unrecognized fields are provided (whitelist check)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/tasks')
+        .send({
+          title: 'Valid Task Title',
+          description: 'Valid description text',
+          unexpectedProperty: 'not allowed',
+        })
+        .expect(400);
+
+      expect(response.body.statusCode).toBe(400);
+      expect(response.body.message).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('property unexpectedProperty should not exist'),
+        ]),
+      );
+    });
   });
 
   describe('GET /api/v1/tasks', () => {
@@ -57,6 +99,24 @@ describe('Tasks API (e2e)', () => {
         (t: { id: string }) => t.id === createdTaskId,
       );
       expect(found).toBeDefined();
+    });
+
+    it('should filter tasks by search query parameter', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/tasks?search=basics')
+        .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBeGreaterThanOrEqual(1);
+      expect(response.body[0].title).toBe('Learn NestJS Basics');
+    });
+
+    it('should fail with 400 if invalid status query is passed', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/tasks?status=INVALID_STATUS')
+        .expect(400);
+
+      expect(response.body.statusCode).toBe(400);
     });
   });
 
@@ -89,6 +149,20 @@ describe('Tasks API (e2e)', () => {
 
       expect(response.body.id).toBe(createdTaskId);
       expect(response.body.status).toBe('IN_PROGRESS');
+    });
+
+    it('should fail with 400 when invalid status is sent', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/tasks/${createdTaskId}`)
+        .send({ status: 'NOT_A_VALID_STATUS' })
+        .expect(400);
+
+      expect(response.body.statusCode).toBe(400);
+      expect(response.body.message).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('Status must be one of: OPEN, IN_PROGRESS, DONE'),
+        ]),
+      );
     });
 
     it('should return 404 when updating non-existent task', async () => {
@@ -124,4 +198,3 @@ describe('Tasks API (e2e)', () => {
     });
   });
 });
-
